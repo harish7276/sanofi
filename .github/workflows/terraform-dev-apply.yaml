@@ -1,0 +1,41 @@
+name: Terraform Apply Dev
+
+on:
+  push:
+    branches:
+      - main
+    paths"
+      - 'envs/dev/**'
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID_DEV }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET_DEV }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID_DEV }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID_DEV }}
+
+jobs:
+  terraform-apply:
+    name: Terraform Apply (Dev)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: envs/dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Download tfplan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: envs/dev
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve "tfplan"
