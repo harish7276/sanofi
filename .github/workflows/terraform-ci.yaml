@@ -1,0 +1,66 @@
+name: Terraform CI (Plan)
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  terraform-ci:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [dev, prod]
+
+    defaults:
+      run:
+        working-directory: terraform/environments/${{ matrix.environment }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.6
+
+      - name: Set environment secrets
+        id: envsecrets
+        run: |
+          if [[ "${{ matrix.environment }}" == "dev" ]]; then
+            echo "ARM_CLIENT_ID=${{ secrets.DEV_ARM_CLIENT_ID }}" >> $GITHUB_ENV
+            echo "ARM_CLIENT_SECRET=${{ secrets.DEV_ARM_CLIENT_SECRET }}" >> $GITHUB_ENV
+            echo "ARM_SUBSCRIPTION_ID=${{ secrets.DEV_ARM_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+            echo "ARM_TENANT_ID=${{ secrets.DEV_ARM_TENANT_ID }}" >> $GITHUB_ENV
+            echo "TFSTATE_STORAGE=${{ secrets.DEV_TF_STATE_STORAGE }}" >> $GITHUB_ENV
+            echo "TFSTATE_KEY=dev.tfstate" >> $GITHUB_ENV
+          else
+            echo "ARM_CLIENT_ID=${{ secrets.PROD_ARM_CLIENT_ID }}" >> $GITHUB_ENV
+            echo "ARM_CLIENT_SECRET=${{ secrets.PROD_ARM_CLIENT_SECRET }}" >> $GITHUB_ENV
+            echo "ARM_SUBSCRIPTION_ID=${{ secrets.PROD_ARM_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+            echo "ARM_TENANT_ID=${{ secrets.PROD_ARM_TENANT_ID }}" >> $GITHUB_ENV
+            echo "TFSTATE_STORAGE=${{ secrets.PROD_TF_STATE_STORAGE }}" >> $GITHUB_ENV
+            echo "TFSTATE_KEY=prod.tfstate" >> $GITHUB_ENV
+          fi
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RG }}" \
+            -backend-config="storage_account_name=${{ env.TFSTATE_STORAGE }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=${{ env.TFSTATE_KEY }}"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan -input=false
+
+      - name: Upload tfplan Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: terraform/environments/${{ matrix.environment }}/tfplan
