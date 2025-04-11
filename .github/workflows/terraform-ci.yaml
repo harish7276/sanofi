@@ -1,6 +1,6 @@
 ### .github/workflows/ci.yml
 
-```yaml
+
 name: Terraform CI (Plan)
 
 on:

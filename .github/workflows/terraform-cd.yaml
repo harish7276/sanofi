@@ -1,6 +1,6 @@
 ### .github/workflows/cd.yml
 
-```yaml
+
 name: Terraform CD (Apply)
 
 on:
