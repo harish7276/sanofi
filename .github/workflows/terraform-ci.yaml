@@ -1,6 +1,3 @@
-### .github/workflows/ci.yml
-
-
 name: Terraform CI (Plan)
 
 on:
@@ -12,32 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - environment: dev
-            client_id: ${{ secrets.DEV_ARM_CLIENT_ID }}
-            client_secret: ${{ secrets.DEV_ARM_CLIENT_SECRET }}
-            subscription_id: ${{ secrets.DEV_ARM_SUBSCRIPTION_ID }}
-            tenant_id: ${{ secrets.DEV_ARM_TENANT_ID }}
-            tfstate_key: dev.tfstate
-            tfstate_storage: ${{ secrets.DEV_TF_STATE_STORAGE }}
-
-          - environment: prod
-            client_id: ${{ secrets.PROD_ARM_CLIENT_ID }}
-            client_secret: ${{ secrets.PROD_ARM_CLIENT_SECRET }}
-            subscription_id: ${{ secrets.PROD_ARM_SUBSCRIPTION_ID }}
-            tenant_id: ${{ secrets.PROD_ARM_TENANT_ID }}
-            tfstate_key: prod.tfstate
-            tfstate_storage: ${{ secrets.PROD_TF_STATE_STORAGE }}
+        environment: [dev, prod]
 
     defaults:
       run:
         working-directory: terraform/environments/${{ matrix.environment }}
-
-    env:
-      ARM_CLIENT_ID: ${{ matrix.client_id }}
-      ARM_CLIENT_SECRET: ${{ matrix.client_secret }}
-      ARM_SUBSCRIPTION_ID: ${{ matrix.subscription_id }}
-      ARM_TENANT_ID: ${{ matrix.tenant_id }}
 
     steps:
       - uses: actions/checkout@v3
@@ -47,6 +23,25 @@ jobs:
         with:
           terraform_version: 1.6.6
 
+      - name: Set environment secrets
+        id: envsecrets
+        run: |
+          if [[ "${{ matrix.environment }}" == "dev" ]]; then
+            echo "ARM_CLIENT_ID=${{ secrets.DEV_ARM_CLIENT_ID }}" >> $GITHUB_ENV
+            echo "ARM_CLIENT_SECRET=${{ secrets.DEV_ARM_CLIENT_SECRET }}" >> $GITHUB_ENV
+            echo "ARM_SUBSCRIPTION_ID=${{ secrets.DEV_ARM_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+            echo "ARM_TENANT_ID=${{ secrets.DEV_ARM_TENANT_ID }}" >> $GITHUB_ENV
+            echo "TFSTATE_STORAGE=${{ secrets.DEV_TF_STATE_STORAGE }}" >> $GITHUB_ENV
+            echo "TFSTATE_KEY=dev.tfstate" >> $GITHUB_ENV
+          else
+            echo "ARM_CLIENT_ID=${{ secrets.PROD_ARM_CLIENT_ID }}" >> $GITHUB_ENV
+            echo "ARM_CLIENT_SECRET=${{ secrets.PROD_ARM_CLIENT_SECRET }}" >> $GITHUB_ENV
+            echo "ARM_SUBSCRIPTION_ID=${{ secrets.PROD_ARM_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+            echo "ARM_TENANT_ID=${{ secrets.PROD_ARM_TENANT_ID }}" >> $GITHUB_ENV
+            echo "TFSTATE_STORAGE=${{ secrets.PROD_TF_STATE_STORAGE }}" >> $GITHUB_ENV
+            echo "TFSTATE_KEY=prod.tfstate" >> $GITHUB_ENV
+          fi
+
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
 
@@ -54,9 +49,9 @@ jobs:
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ secrets.TF_STATE_RG }}" \
-            -backend-config="storage_account_name=${{ matrix.tfstate_storage }}" \
+            -backend-config="storage_account_name=${{ env.TFSTATE_STORAGE }}" \
             -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
-            -backend-config="key=${{ matrix.tfstate_key }}"
+            -backend-config="key=${{ env.TFSTATE_KEY }}"
 
       - name: Terraform Validate
         run: terraform validate
